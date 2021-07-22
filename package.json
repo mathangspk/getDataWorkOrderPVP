@@ -10,6 +10,8 @@
   "license": "ISC",
   "dependencies": {
     "apify": "^1.2.1",
+    "googleapis": "^81.0.0",
+    "moment": "^2.29.1",
     "puppeteer": "^10.1.0"
   }
 }
