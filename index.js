@@ -164,9 +164,11 @@ async function insertDataGoogleSheet(nameSheet, value) {
 //insertDataGoogleSheet();
 
 async function main() {
-  await getSRForDepartment("C&I")
+  await getSRForDepartment("C&I");
+  await getSRForDepartment("DIEN");
+  await getSRForDepartment("CO");
 }
-async function getSRForDepartment(department){
+async function getSRForDepartment(department) {
   let sheetCheck = nameSheetCheck(department);
   console.log(sheetCheck)
   let titles = await getAllSheet();
@@ -176,7 +178,10 @@ async function getSRForDepartment(department){
   if (tabSRNowHave) {
     let SR = await filterSRWithDate(department);
     console.log(SR)
-    let srOnly = SR.map(el => el[0])
+    let indexC = await firstCheckSRDateFinish(SR);// return index when compare date finish set
+    console.log(indexC);
+    let SRF = await filterSRWithDateFinish(indexC.index, SR)
+    let srOnly = SRF.map(el => el[0])
     console.log(srOnly)
     let dataExist = await getDataFromGoogleSheet(sheetCheck);
     //console.log(dataExist)
@@ -184,12 +189,12 @@ async function getSRForDepartment(department){
     if (dataExist) {
       console.log('dataExists:');
       console.log(dataExist);
-      let dataInsert = await compare2Array(dataExist, srOnly, SR);
+      let dataInsert = await compare2Array(dataExist, srOnly, SRF);
       console.log('dataInsert:');
       console.log(dataInsert);
       await insertDataGoogleSheet(sheetCheck, dataInsert);
     } else {
-      await insertDataGoogleSheet(sheetCheck, SR);
+      await insertDataGoogleSheet(sheetCheck, SRF);
     }
   } else {
     await createNewSheet(sheetCheck);
@@ -204,8 +209,11 @@ async function getSRForDepartment(department){
       'departmentService']]
     await insertHeaderGoogleSheet(sheetCheck, header);
     let SR = await filterSRWithDate(department);
-    console.log(SR)
-    await insertDataGoogleSheet(sheetCheck, SR);
+    let indexC = await firstCheckSRDateFinish(SR);// return index when compare date finish set
+    console.log(indexC);
+    let SRF = await filterSRWithDateFinish(indexC, SR)
+    console.log(SRF);
+    await insertDataGoogleSheet(sheetCheck, SRF);
   }
 }
 
@@ -229,6 +237,11 @@ async function filterSRWithDate(department) {
   return arrayAfterCompare;
 }
 
+async function filterSRWithDateFinish(index, arrayIn) {
+  let result = arrayIn.splice(index,arrayIn.length);
+  return result;
+}
+
 async function firstCheckSRDate(srArray) {
   let month = new Date();
   let year = new Date();
@@ -239,6 +252,24 @@ async function firstCheckSRDate(srArray) {
   for (let i = 0; i < srArray.length; i++) {
     console.log(srArray[i][5])
     result.check = await compareDate(dater, srArray[i][5])
+    console.log(result.check)
+    if (result.check) {
+      result.index = i;
+      break;
+    }
+  }
+  return result;
+}
+async function firstCheckSRDateFinish(srArray) {
+  let month = new Date();
+  let year = new Date();
+  let date = moment(new Date(year.getFullYear(), month.getMonth(), 25)).format("YYYY-MM-DD");
+  date = date.split("T")[0];
+  let dater = new Date(date)
+  let result = {};
+  for (let i = 0; i < srArray.length; i++) {
+    console.log(srArray[i][5])
+    result.check = await compareDateFinish(dater, srArray[i][5])
     console.log(result.check)
     if (result.check) {
       result.index = i;
@@ -258,6 +289,20 @@ async function compareDate(date, element) {
     result = true;
   } else {
     result = false;
+  }
+  return result;
+}
+async function compareDateFinish(dateFinish, element) {
+  let result = false;
+  console.log(dateFinish);
+  let dateC = moment(new Date(element)).format("YYYY-MM-DD");
+  dateC = dateC.split("T")[0];
+  let dateB = new Date(dateC);
+  console.log(dateB);
+  if (dateFinish < dateB) {
+    result = false;
+  } else {
+    result = true;
   }
   return result;
 }
@@ -302,7 +347,7 @@ async function getServiceRequest(times, department) {
   const browser = await puppeteer.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.setDefaultNavigationTimeout(0); 
+    await page.setDefaultNavigationTimeout(0);
     //await page.setViewport({ width: 1200, height: 600 })
     //await page.goto('https://facebook.com');
     await page.goto('https://eam.pvpower.vn/maximo/webclient/login/login.jsp');
@@ -335,7 +380,7 @@ async function getServiceRequest(times, department) {
     await page.type('input[id="m6a7dfd2f_tfrow_[C:9]_txt-tb"]', String(department));
     await page.keyboard.press('Enter');
     await page.waitForTimeout(5000);
-    console.log('find by '+ department);
+    console.log('find by ' + department);
     let sr = await getPage(browser, page, times);
     browser.close();
     return sr;
