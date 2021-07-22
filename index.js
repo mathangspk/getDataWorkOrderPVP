@@ -302,6 +302,7 @@ async function getServiceRequest(times, department) {
   const browser = await puppeteer.launch({ headless: true });
   try {
     const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(0); 
     //await page.setViewport({ width: 1200, height: 600 })
     //await page.goto('https://facebook.com');
     await page.goto('https://eam.pvpower.vn/maximo/webclient/login/login.jsp');
