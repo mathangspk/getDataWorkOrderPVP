@@ -299,19 +299,21 @@ main();
 
 async function getServiceRequest(times, department) {
   // Get the username and password inputs
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await puppeteer.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.setViewport({ width: 1200, height: 600 })
+    //await page.setViewport({ width: 1200, height: 600 })
     //await page.goto('https://facebook.com');
     await page.goto('https://eam.pvpower.vn/maximo/webclient/login/login.jsp');
     // Login
+    console.log('Go to link https://eam.pvpower.vn/maximo/webclient/login/login.jsp')
     //await page.waitForNavigation();
     await page.type('#username', "CM-DVSC-IC");
     await page.type('#password', "ICPVPSCMB");
     await page.click('#loginbutton');
     //wait panel appear
-    await page.waitForNavigation();
+    //await page.waitForNavigation();
+    console.log('Login success')
     await page.waitForSelector('#FavoriteApp_SR_VA1');
     await page.click('#FavoriteApp_SR_VA1');
     //await page.waitForSelector('input');
@@ -323,6 +325,7 @@ async function getServiceRequest(times, department) {
     });
     //await page.waitForNavigation();
     await page.waitForTimeout(5000);
+    console.log('Go to SR complete')
     await page.waitForSelector('#menu0_useAllRecsQuery_OPTION_a');
     await page.evaluate(() => {
       return document.getElementById("menu0_useAllRecsQuery_OPTION_a").click()
@@ -331,6 +334,7 @@ async function getServiceRequest(times, department) {
     await page.type('input[id="m6a7dfd2f_tfrow_[C:9]_txt-tb"]', String(department));
     await page.keyboard.press('Enter');
     await page.waitForTimeout(5000);
+    console.log('find by '+ department);
     let sr = await getPage(browser, page, times);
     browser.close();
     return sr;
