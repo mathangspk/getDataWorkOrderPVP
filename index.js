@@ -5,13 +5,42 @@ const moment = require('moment');
 
 const fs = require('fs');
 const keyFile = path.join(__dirname, 'credentials.json');
+var lastDay = function (y, m) {
+  return new Date(y, m, 0).getDate();
+}
+async function checkDayCreateNewSheet() {
+  const month = moment(new Date()).format('MM');
+  const year = moment(new Date()).format('YYYY');
+  const lastDay1 = lastDay(year, month);
+  let dayCheckFrom = moment(new Date()).format("YYYY-MM-26");
+  let dayCheckTo = moment(new Date()).format("YYYY-MM-" + lastDay1);
+  console.log(dayCheckTo);
+  let today = moment(new Date()).format("YYYY-MM-DD");
+  console.log(today)
+  if (today >= dayCheckFrom && today <= dayCheckTo) return true;
+  return false;
+}
 
 function nameSheetCheck(department) {
-  const monthYear = moment(new Date()).format('MMYYYY')
+  const monthYear = moment(new Date()).format('MYYYY')
   const nameSheetCheck = String('SR' + monthYear + "-" + department)
   return nameSheetCheck;
 }
-
+function nameSheetCheckNextMonth(department) {
+  let month = new Date().getMonth();
+  let year;
+  if (month == 11) {
+    month = 1;
+    year = moment(new Date()).format('YYYY');
+    year = Number(year) + 1;
+  } else {
+    month = Number(month) + 2;
+    year = moment(new Date()).format('YYYY');
+  }
+  const monthYear = String(String(month) + String(year));
+  const nameSheetCheck = String('SR' + monthYear + "-" + department)
+  return nameSheetCheck;
+}
 
 function convertStringToDate(stringDate) {
   let t = stringDate;
@@ -169,6 +198,21 @@ async function main() {
   await getSRForDepartment("CO");
 }
 async function getSRForDepartment(department) {
+  let dayCreateNew = await checkDayCreateNewSheet();
+  console.log(dayCreateNew);
+  let thisMonth;
+  if (dayCreateNew) {
+    thisMonth = false;
+    console.log('this month is: '+ thisMonth);
+    createWorkSheetSRNextMonth(department, thisMonth);
+  } else {
+    thisMonth = true;
+    console.log('this month is: '+ thisMonth);
+    createWorkSheetSR(department, thisMonth);    
+  }
+}
+
+async function createWorkSheetSR(department, thisMonth) {
   let sheetCheck = nameSheetCheck(department);
   console.log(sheetCheck)
   let titles = await getAllSheet();
@@ -176,9 +220,9 @@ async function getSRForDepartment(department) {
   let tabSRNowHave = await checkExistElementInArray(sheetCheck, titles);
   console.log(tabSRNowHave)
   if (tabSRNowHave) {
-    let SR = await filterSRWithDate(department);
+    let SR = await filterSRWithDate(department,thisMonth);
     console.log(SR)
-    let indexC = await firstCheckSRDateFinish(SR);// return index when compare date finish set
+    let indexC = await firstCheckSRDateFinish(SR,thisMonth);// return index when compare date finish set
     console.log(indexC);
     let SRF = await filterSRWithDateFinish(indexC.index, SR)
     let srOnly = SRF.map(el => el[0])
@@ -208,16 +252,64 @@ async function getSRForDepartment(department) {
       'status',
       'departmentService']]
     await insertHeaderGoogleSheet(sheetCheck, header);
-    let SR = await filterSRWithDate(department);
-    let indexC = await firstCheckSRDateFinish(SR);// return index when compare date finish set
+    let SR = await filterSRWithDate(department,thisMonth);
+    let indexC = await firstCheckSRDateFinish(SR,thisMonth);// return index when compare date finish set
     console.log(indexC);
-    let SRF = await filterSRWithDateFinish(indexC, SR)
+    let SRF = await filterSRWithDateFinish(indexC.index, SR)
+    console.log(SRF);
+    await insertDataGoogleSheet(sheetCheck, SRF);
+  }
+}
+async function createWorkSheetSRNextMonth(department,thisMonth) {
+  let sheetCheck = nameSheetCheckNextMonth(department);
+  console.log(sheetCheck)
+  let titles = await getAllSheet();
+  console.log(titles);
+  let tabSRNowHave = await checkExistElementInArray(sheetCheck, titles);
+  console.log(tabSRNowHave)
+  if (tabSRNowHave) {
+    let SR = await filterSRWithDate(department,thisMonth);
+    console.log(SR)
+    let indexC = await firstCheckSRDateFinish(SR,thisMonth);// return index when compare date finish set
+    console.log(indexC);
+    let SRF = await filterSRWithDateFinish(indexC.index, SR)
+    let srOnly = SRF.map(el => el[0])
+    console.log(srOnly)
+    let dataExist = await getDataFromGoogleSheet(sheetCheck);
+    //console.log(dataExist)
+    // //compare dataExist with getServiceRequest get
+    if (dataExist) {
+      console.log('dataExists:');
+      console.log(dataExist);
+      let dataInsert = await compare2Array(dataExist, srOnly, SRF);
+      console.log('dataInsert:');
+      console.log(dataInsert);
+      await insertDataGoogleSheet(sheetCheck, dataInsert);
+    } else {
+      await insertDataGoogleSheet(sheetCheck, SRF);
+    }
+  } else {
+    await createNewSheet(sheetCheck);
+    let header = [[
+      'Service Request',
+      'Summary',
+      'asset',
+      'location',
+      'plant',
+      'time',
+      'status',
+      'departmentService']]
+    await insertHeaderGoogleSheet(sheetCheck, header);
+    let SR = await filterSRWithDate(department,thisMonth);
+    let indexC = await firstCheckSRDateFinish(SR,thisMonth);// return index when compare date finish set
+    console.log(indexC);
+    let SRF = await filterSRWithDateFinish(indexC.index, SR)
     console.log(SRF);
     await insertDataGoogleSheet(sheetCheck, SRF);
   }
 }
 
-async function filterSRWithDate(department) {
+async function filterSRWithDate(department,thisMonth) {
   let arrayAfterCompare = [];
   let page = 1;
   let c = {
@@ -229,7 +321,9 @@ async function filterSRWithDate(department) {
     //console.log(sr.length)
     page++;
     let srArray = await convertObjectToArray(sr);
-    c = await firstCheckSRDate(srArray);
+    console.log('filterSRWithDate');
+    console.log(thisMonth);
+    c = await firstCheckSRDate(srArray,thisMonth);
     console.log(c);
     arrayAfterCompare = await spliceElementInArray(c.index, srArray);
     //console.log('arrayAfterCompare' + arrayAfterCompare);
@@ -238,14 +332,22 @@ async function filterSRWithDate(department) {
 }
 
 async function filterSRWithDateFinish(index, arrayIn) {
-  let result = arrayIn.splice(index,arrayIn.length);
+  let result = arrayIn.splice(index, arrayIn.length);
   return result;
 }
 
-async function firstCheckSRDate(srArray) {
+async function firstCheckSRDate(srArray, thisMonth) {
   let month = new Date();
   let year = new Date();
-  let date = moment(new Date(year.getFullYear(), month.getMonth()-1, 26)).format("YYYY-MM-DD");
+  let date;
+  console.log('firstCheckSRDate');
+  console.log(thisMonth);
+  if (thisMonth == true) {
+    date = moment(new Date(year.getFullYear(), month.getMonth() - 1, 26)).format("YYYY-MM-DD");
+  } else {
+    date = moment(new Date(year.getFullYear(), month.getMonth(), 26)).format("YYYY-MM-DD");
+  }
+
   date = date.split("T")[0];
   let dater = new Date(date)
   let result = {};
@@ -260,10 +362,18 @@ async function firstCheckSRDate(srArray) {
   }
   return result;
 }
-async function firstCheckSRDateFinish(srArray) {
+async function firstCheckSRDateFinish(srArray, thisMonth) {
   let month = new Date();
   let year = new Date();
-  let date = moment(new Date(year.getFullYear(), month.getMonth(), 25)).format("YYYY-MM-DD");
+  let date;
+  console.log('firstCheckSRDateFinish');
+  console.log(thisMonth);
+  if (thisMonth == true) {
+    date = moment(new Date(year.getFullYear(), month.getMonth(), 25)).format("YYYY-MM-DD");
+  } else {
+    date = moment(new Date(year.getFullYear(), month.getMonth() + 1, 25)).format("YYYY-MM-DD");
+  }
+
   date = date.split("T")[0];
   let dater = new Date(date)
   let result = {};
